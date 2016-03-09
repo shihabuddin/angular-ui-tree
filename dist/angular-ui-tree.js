@@ -1047,6 +1047,8 @@
                 //Assigning scope to target you are moving draggable over.
                 if (UiTreeHelper.elementIsTree(targetElm)) {
                   targetNode = targetElm.controller('uiTree').scope;
+                } else if (UiTreeHelper.elementIsEmptyTree(targetElm)) {
+                  targetNode = targetElm.controller('uiTree').scope;
                 } else if (UiTreeHelper.elementIsTreeNodeHandle(targetElm)) {
                   targetNode = targetElm.controller('uiTreeHandle').scope;
                 } else if (UiTreeHelper.elementIsTreeNode(targetElm)) {
@@ -1109,8 +1111,11 @@
                     return;
                   }
 
-                  //Show the placeholder if it was hidden for nodrop-enabled and this is a new tree
-                  if (targetNode.$treeScope && !targetNode.$parent.nodropEnabled && !targetNode.$treeScope.nodropEnabled) {
+                  //Show the placeholder if it was hidden for nodrop-enabled and this is a new tree (or an empty tree)
+                  if (
+                    (targetNode.$type == 'uiTree'&& !targetNode.nodropEnabled) ||
+                    (targetNode.$treeScope && !targetNode.$treeScope.nodropEnabled && !targetNode.$parent.nodropEnabled)
+                  ) {
                     placeElm.css('display', '');
                   }
 
@@ -1802,7 +1807,9 @@
           elementIsTreeNode: function (element) {
             return typeof element.attr('ui-tree-node') !== 'undefined';
           },
-
+          elementIsEmptyTree: function (element) {
+            return element.hasClass(treeConfig.emptyTreeClass);
+          },
           elementIsTreeNodeHandle: function (element) {
             return typeof element.attr('ui-tree-handle') !== 'undefined';
           },
