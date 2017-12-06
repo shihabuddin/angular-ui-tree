@@ -1137,9 +1137,11 @@
                       next = dragInfo.next();
                       if (!next && unhover) {
                         target = dragInfo.parentNode();
-                        target.$element.after(placeElm);
-                        dragInfo.moveTo(target.$parentNodesScope, target.siblings(), target.index() + 1);
-                        unhover = false;
+                        if (target) {
+                          target.$element.after(placeElm);
+                          dragInfo.moveTo(target.$parentNodesScope, target.siblings(), target.index() + 1);
+                          unhover = false;
+                        }
                       }
                     }
                     return;
