@@ -620,6 +620,7 @@
               pos,
               placeElm,
               hiddenPlaceElm,
+              hiddenSourcePlaceElm,
               dragElm,
               scrollContainerElm,
               unhover,
@@ -648,7 +649,9 @@
               isHandleChild,
               el,
               isUiTreeRoot,
-              treeOfOrigin;
+              treeOfOrigin,
+              restoreCursor,
+              removeDragInfo;
 
             //Adding configured class to ui-tree-node.
             angular.extend(config, treeConfig);
@@ -835,6 +838,12 @@
                 hiddenPlaceElm.addClass(config.hiddenClass);
               }
 
+              // Place holder for the source of a node
+              hiddenSourcePlaceElm = angular.element($window.document.createElement(tagName));
+              if (config.hiddenClass) {
+                hiddenSourcePlaceElm.addClass(config.hiddenClass);
+              }
+
               //Getting starting position of element being moved.
               pos = UiTreeHelper.positionStarted(eventObj, element);
               placeElm.css('height', element.prop('offsetHeight') + 'px');
@@ -858,6 +867,7 @@
               }
 
               //Insert placeholder.
+              element.after(hiddenSourcePlaceElm);
               element.after(placeElm);
               element.after(hiddenPlaceElm);
               if (dragInfo.isClone() && scope.sourceOnly) {
@@ -1253,52 +1263,59 @@
               //This cancel the collapse/expand login running.
               $timeout.cancel(scope.expandTimeout);
 
-              scope.$treeScope.$apply(function () {
-                $q.when(scope.$treeScope.$callbacks.beforeDrop(dragEventArgs))
+              // Move node if cursor is within the bound of drop placeholder,
+              // Otherwise move node to its original position once drag ends
+              if(e.target == dragEventArgs.elements.placeholder[0]) {
+                scope.$treeScope.$apply(function () {
+                  $q.when(scope.$treeScope.$callbacks.beforeDrop(dragEventArgs))
 
-                     //Promise resolved (or callback didn't return false)
-                    .then(function (allowDrop) {
-                      if (allowDrop !== false && scope.$$allowNodeDrop) {
-                        //Node drop accepted.
-                        dragInfo.apply();
+                  //Promise resolved (or callback didn't return false)
+                      .then(function (allowDrop) {
+                        if (allowDrop !== false && scope.$$allowNodeDrop) {
+                          //Node drop accepted.
+                          dragInfo.apply();
 
-                        //Fire the dropped callback only if the move was successful.
-                        scope.$treeScope.$callbacks.dropped(dragEventArgs);
-                      } else {
-                        //Drop canceled - revert the node to its original position.
+                          //Fire the dropped callback only if the move was successful.
+                          scope.$treeScope.$callbacks.dropped(dragEventArgs);
+                        } else {
+                          //Drop canceled - revert the node to its original position.
+                          bindDragStartEvents();
+                        }
+                      })
+
+                      //Promise rejected - revert the node to its original position.
+                      .catch(function () {
                         bindDragStartEvents();
-                      }
-                    })
+                      })
+                      .finally(function () {
 
-                    //Promise rejected - revert the node to its original position.
-                    .catch(function () {
-                      bindDragStartEvents();
-                    })
-                    .finally(function () {
+                        //Replace placeholder with newly dropped element.
+                        hiddenPlaceElm.replaceWith(scope.$element);
+                        placeElm.remove();
 
-                      //Replace placeholder with newly dropped element.
-                      hiddenPlaceElm.replaceWith(scope.$element);
-                      placeElm.remove();
+                        //Remove drag element if still in DOM.
+                        removeDragInfo(dragElm, dragInfo);
 
-                      //Remove drag element if still in DOM.
-                      if (dragElm) {
-                        dragElm.remove();
-                        dragElm = null;
-                      }
+                        //Fire dragStope callback.
+                        scope.$treeScope.$callbacks.dragStop(dragEventArgs);
+                        scope.$$allowNodeDrop = false;
 
-                      //Fire dragStope callback.
-                      scope.$treeScope.$callbacks.dragStop(dragEventArgs);
-                      scope.$$allowNodeDrop = false;
-                      dragInfo = null;
+                        //Restore cursor in Opera 12.16 and IE
+                        restoreCursor();
+                      });
+                });
+              }
+              else {
+                bindDragStartEvents();
+                hiddenSourcePlaceElm.replaceWith(scope.$element);
+                placeElm.remove();
 
-                      //Restore cursor in Opera 12.16 and IE
-                      var oldCur = document.body.getAttribute('ui-tree-cursor');
-                      if (oldCur !== null) {
-                        $document.find('body').css({'cursor': oldCur});
-                        document.body.removeAttribute('ui-tree-cursor');
-                      }
-                    });
-              });
+                //Remove drag element if still in DOM.
+                removeDragInfo(dragElm, dragInfo);
+
+                //Restore cursor in Opera 12.16 and IE
+                restoreCursor();
+              }
             };
 
             dragStartEvent = function (e) {
@@ -1390,6 +1407,22 @@
               angular.element($document).unbind('mousemove', dragMoveEvent);
               angular.element($document).unbind('mouseleave', dragCancelEvent);
               angular.element($document).unbind('keydown', keydownHandler);
+            };
+
+            restoreCursor = function () {
+              var oldCur = document.body.getAttribute('ui-tree-cursor');
+              if (oldCur !== null) {
+                $document.find('body').css({'cursor': oldCur});
+                document.body.removeAttribute('ui-tree-cursor');
+              }
+            };
+
+            removeDragInfo = function (dragElement, dragInformation) {
+              if (dragElement) {
+                dragElement.remove();
+                dragElement = null;
+              }
+              dragInformation = null;
             };
           }
         };
